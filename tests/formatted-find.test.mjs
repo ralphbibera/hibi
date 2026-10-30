@@ -1108,6 +1108,34 @@ test('formatted find moving to an adjacent match restyles highlights without rew
   await count('1/10000')
   await measureFindLayout(rich)
   await rich.evaluate((element) => {
+    const view = element.cmTile.root.view
+    const t0 = performance.now()
+    const early = (window.diag393early = { updates: [], mutations: [] })
+    early.mark = (label) => early.updates.push({ at: Math.round(performance.now() - t0), mark: label })
+    const proto = Object.getPrototypeOf(view)
+    const update = proto.update
+    proto.update = function (transactions) {
+      if (this === view)
+        early.updates.push({
+          at: Math.round(performance.now() - t0),
+          trs: transactions.map((tr) => ({
+            doc: tr.docChanged,
+            sel: !!tr.selection,
+            effects: tr.effects.map((effect) => {
+              const value = effect.value
+              const keys = value && typeof value === "object" ? Object.keys(value).join(",") : typeof value
+              return keys === "from,to" ? [keys, value.from, value.to] : keys
+            }),
+          })),
+          stack: new Error().stack.split("\n").slice(2, 9).map((line) => line.trim().replace(/\(app:\/\/hibi\/assets\//, "(").slice(0, 70)),
+        })
+      return update.call(this, transactions)
+    }
+    new MutationObserver((records) =>
+      early.mutations.push([Math.round(performance.now() - t0), records.length, records.filter((record) => record.type === "characterData").length]),
+    ).observe(element, { childList: true, subtree: true, characterData: true })
+  })
+  await rich.evaluate((element) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
     const nodes = []
     while (walker.nextNode())
@@ -1132,6 +1160,7 @@ test('formatted find moving to an adjacent match restyles highlights without rew
       subtree: true,
     })
   })
+  await page.evaluate(() => window.diag393early.mark("captured"))
   await rich.evaluate((element) => {
     const view = element.cmTile.root.view
     const gaps = () => (view.viewState?.lineGaps ?? []).map((gap) => [gap.from, gap.to, Math.round(gap.size), gap.displaySize === undefined ? null : Math.round(gap.displaySize), gap.horizontal ?? null])
@@ -1145,15 +1174,17 @@ test('formatted find moving to an adjacent match restyles highlights without rew
       return updatePlugins.call(this, update)
     }
   })
+  await page.evaluate(() => window.diag393early.mark("enter"))
   await input.press('Enter')
   await count('2/10000')
   await measureFindLayout(rich)
+  await page.evaluate(() => window.diag393early.mark("measured"))
   t.diagnostic(
     "DIAG393 " +
       JSON.stringify(
         await rich.evaluate((element) => {
           const view = element.cmTile.root.view
-          return { ...window.diag393, after: { gaps: (view.viewState?.lineGaps ?? []).map((gap) => [gap.from, gap.to, Math.round(gap.size)]), viewport: [view.viewport.from, view.viewport.to], width: view.contentDOM.clientWidth, scroll: [view.scrollDOM.scrollTop, view.scrollDOM.scrollLeft], fonts: document.fonts.status, head: view.state.selection.main.head } }
+          return { early: { updates: window.diag393early.updates, mutations: window.diag393early.mutations }, ...window.diag393, after: { gaps: (view.viewState?.lineGaps ?? []).map((gap) => [gap.from, gap.to, Math.round(gap.size)]), viewport: [view.viewport.from, view.viewport.to], width: view.contentDOM.clientWidth, scroll: [view.scrollDOM.scrollTop, view.scrollDOM.scrollLeft], fonts: document.fonts.status, head: view.state.selection.main.head } }
         }),
       ),
   )

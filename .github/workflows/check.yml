@@ -23,7 +23,7 @@ jobs:
       - run: npm run build:app
       - run: |
           x() { dbus-run-session -- xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24 -nolisten tcp' node --test --test-concurrency=1 --test-reporter=tap "$@" || true; }
-          for run in 1 2 3 4 5 6 7 8; do
+          for run in 1 2 3 4 5 6 7 8 9 10 11 12; do
             echo "::group::run $run"
             x --test-name-pattern "stay up while the pointer crosses|restyles highlights without rewriting" tests/formatted-link-controls.test.mjs tests/formatted-find.test.mjs
             echo "::endgroup::"
