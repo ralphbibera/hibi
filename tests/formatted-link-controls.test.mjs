@@ -56,6 +56,24 @@ async function open(t, addons) {
       '.rich-pane .hibi-formatted .cm-content[aria-readonly="false"]:not(.hibi-lp-cell-editor *)',
     )
     .waitFor()
+  await page.evaluate(() => {
+    const t0 = performance.now()
+    const log = (window.diag419 = [])
+    const describe = (node) =>
+      node && node.nodeType === 1
+        ? `${node.tagName}.${String(node.className).slice(0, 40)}${node.getAttribute("aria-label") ? "[" + node.getAttribute("aria-label") + "]" : ""}`
+        : String(node)
+    const at = () => Math.round(performance.now() - t0)
+    for (const type of ["focusin", "focusout"])
+      document.addEventListener(type, (event) => log.push([at(), type, describe(event.target), describe(event.relatedTarget)]), true)
+    const focus = HTMLElement.prototype.focus
+    HTMLElement.prototype.focus = function (...args) {
+      if (this.closest?.(".hibi-lp-cell-editor") || this.classList?.contains("cm-content"))
+        log.push([at(), "focus()", describe(this), new Error().stack.split("\n").slice(2, 12).map((line) => line.trim().replace(/\(app:\/\/hibi\/assets\//, "(").slice(0, 70))])
+      return focus.apply(this, args)
+    }
+    window.diag419mark = (label) => log.push([at(), "mark", label])
+  })
   const panel = page.getByRole('dialog', { name: 'Link actions', exact: true })
   const dialog = page.getByRole('dialog', { name: 'Edit link', exact: true })
   const read = () =>
@@ -182,6 +200,7 @@ test('codemirror link actions stay up while the pointer crosses to them', {
       },
       { focused, anchor: note.indexOf('here') },
     )
+    await page.evaluate((focused) => window.diag419mark("stepped " + focused), focused)
     const from = await link.boundingBox()
     await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
     await panel.waitFor()
@@ -223,6 +242,7 @@ test('codemirror link actions stay up while the pointer crosses to them', {
             html: panel.outerHTML.slice(0, 300),
           },
           size: [innerWidth, innerHeight, devicePixelRatio],
+          log: window.diag419,
         }
       }, focused)
     console.log("DIAG419 moved " + JSON.stringify(await state()))
