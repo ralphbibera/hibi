@@ -1132,9 +1132,31 @@ test('formatted find moving to an adjacent match restyles highlights without rew
       subtree: true,
     })
   })
+  await rich.evaluate((element) => {
+    const view = element.cmTile.root.view
+    const gaps = () => (view.viewState?.lineGaps ?? []).map((gap) => [gap.from, gap.to, Math.round(gap.size), gap.displaySize === undefined ? null : Math.round(gap.displaySize), gap.horizontal ?? null])
+    const t0 = performance.now()
+    window.diag393 = { before: { gaps: gaps(), viewport: [view.viewport.from, view.viewport.to], width: view.contentDOM.clientWidth, scroll: [view.scrollDOM.scrollTop, view.scrollDOM.scrollLeft], fonts: document.fonts.status, font: getComputedStyle(view.contentDOM).fontFamily, lineHeight: view.defaultLineHeight, charWidth: view.defaultCharacterWidth }, updates: [] }
+    const proto = Object.getPrototypeOf(view)
+    const updatePlugins = proto.updatePlugins
+    proto.updatePlugins = function (update) {
+      if (this === view)
+        window.diag393.updates.push({ at: Math.round(performance.now() - t0), doc: update.docChanged, viewport: update.viewportChanged, geometry: update.geometryChanged, height: update.heightChanged, focus: update.focusChanged, selection: update.selectionSet, flags: update.flags, effects: update.transactions.map((tr) => tr.effects.length), gaps: gaps() })
+      return updatePlugins.call(this, update)
+    }
+  })
   await input.press('Enter')
   await count('2/10000')
   await measureFindLayout(rich)
+  t.diagnostic(
+    "DIAG393 " +
+      JSON.stringify(
+        await rich.evaluate((element) => {
+          const view = element.cmTile.root.view
+          return { ...window.diag393, after: { gaps: (view.viewState?.lineGaps ?? []).map((gap) => [gap.from, gap.to, Math.round(gap.size)]), viewport: [view.viewport.from, view.viewport.to], width: view.contentDOM.clientWidth, scroll: [view.scrollDOM.scrollTop, view.scrollDOM.scrollLeft], fonts: document.fonts.status, head: view.state.selection.main.head } }
+        }),
+      ),
+  )
   const { containers, ...changes } = await rich.evaluate((element) => {
     const records = [
       ...window.findTextChanges,

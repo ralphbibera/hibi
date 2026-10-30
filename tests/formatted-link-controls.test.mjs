@@ -192,7 +192,39 @@ test('codemirror link actions stay up while the pointer crosses to them', {
       'https://old.example',
     )
     await page.mouse.move(4, 4)
-    await panel.waitFor({ state: 'hidden' })
+    const state = () =>
+      page.evaluate((focused) => {
+        const describe = (n) =>
+          n && n.nodeType === 1
+            ? `${n.tagName}.${String(n.className).slice(0, 60)}${n.getAttribute("aria-label") ? "[" + n.getAttribute("aria-label") + "]" : ""}`
+            : String(n)
+        const panel = document.querySelector(".hibi-link-actions")
+        return {
+          focused,
+          hasFocus: document.hasFocus(),
+          active: describe(document.activeElement),
+          at: describe(document.elementFromPoint(4, 4)),
+          hovered: [...document.querySelectorAll(":hover")].map(describe).slice(-5),
+          views: [...document.querySelectorAll(".cm-content")].map((content) => {
+            const view = content.cmTile?.root?.view
+            return view && { focus: view.hasFocus, head: view.state.selection.main.head, cell: !!content.closest(".hibi-lp-cell-editor"), len: view.state.doc.length }
+          }),
+          panel: panel && {
+            dest: panel.querySelector(".hibi-link-destination")?.textContent,
+            open: panel.matches(":popover-open"),
+            rect: panel.getBoundingClientRect().toJSON(),
+            html: panel.outerHTML.slice(0, 300),
+          },
+          size: [innerWidth, innerHeight, devicePixelRatio],
+        }
+      }, focused)
+    console.log("DIAG419 moved " + JSON.stringify(await state()))
+    try {
+      await panel.waitFor({ state: "hidden" })
+    } catch (error) {
+      console.log("DIAG419 stuck " + JSON.stringify(await state()))
+      throw error
+    }
   }
 })
 
